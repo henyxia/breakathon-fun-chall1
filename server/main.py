@@ -13,6 +13,10 @@ class Client:
         self.name = name
         self.channel = channel
 
+class Channel:
+    def __init__(self, name):
+        self.name = name
+
 """The first argument AF_INET is the address domain of the 
 socket. This is used when we have an Internet Domain with 
 any two hosts The second argument is the type of socket. 
@@ -46,6 +50,7 @@ increased as per convenience.
 server.listen(100) 
   
 list_of_clients = [] 
+list_of_channels = [Channel("general")]
   
 def setUsername(conn, username):
     for client in list_of_clients:
@@ -53,10 +58,10 @@ def setUsername(conn, username):
             client.name = username
             return
 
-def getUsernameFromConn(conn):
+def getClientFromConn(conn):
     for client in list_of_clients:
         if client.conn == conn:
-            return client.name
+            return client
 
 def clientthread(conn, addr): 
   
@@ -74,16 +79,34 @@ def clientthread(conn, addr):
                         print("user "+addr[0]+" renamed itself to "+newUser[1])
                         setUsername(conn, newUser[1])
                         continue
-  
+
+                    if message.startswith("/listchan"):
+                        conn.send("channel list\n")
+                        conn.send("------------\n\n")
+                        for channel in list_of_channels:
+                            conn.send(" * "+channel.name+"\n")
+                        continue
+
+                    if message.startswith("/createchan"):
+                        newChannel = message.split(" ")
+                        list_of_channels.append(Channel(newChannel[1]))
+                        continue
+
+                    if message.startswith("/joinchan"):
+                        newChannel = message.split(" ")
+                        client = getClientFromConn(conn)
+                        client.channel = newChannel[1]
+                        continue
+
                     """prints the message and address of the 
                     user who just sent the message on the server 
                     terminal"""
-                    who = getUsernameFromConn(conn)
-                    print ("<" + who + "> " + message) 
+                    client = getClientFromConn(conn)
+                    print ("#"+client.channel+" <" + client.name + "> " + message) 
   
                     # Calls broadcast function to send message to all 
-                    message_to_send = "<" + who + "> " + message 
-                    broadcast(message_to_send, conn) 
+                    message_to_send = "<" + client.name + "> " + message 
+                    broadcast(message_to_send, conn, client.channel) 
   
                 else: 
                     """message may have no content if the connection 
@@ -97,8 +120,10 @@ def clientthread(conn, addr):
 """Using the below function, we broadcast the message to all 
 clients who's object is not the same as the one sending 
 the message """
-def broadcast(message, connection): 
-    for client in list_of_clients: 
+def broadcast(message, connection, channel): 
+    for client in list_of_clients:
+        if client.channel != channel:
+            continue
         if client.conn!=connection: 
             try: 
                 client.conn.send(message) 
@@ -125,7 +150,7 @@ while True:
   
     """Maintains a list of clients for ease of broadcasting 
     a message to all available people in the chatroom"""
-    newClient = Client(conn, 'undef', 'undef')
+    newClient = Client(conn, 'undef', 'general')
     list_of_clients.append(newClient) 
   
     # prints the address of the user that just connected 
