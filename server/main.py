@@ -1,8 +1,18 @@
+#!/usr/bin/python3
+
 import socket 
 import select 
-import sys 
+import sys
+import re
 from thread import *
-  
+import traceback
+
+class Client:
+    def __init__(self, conn, name, channel):
+        self.conn = conn
+        self.name = name
+        self.channel = channel
+
 """The first argument AF_INET is the address domain of the 
 socket. This is used when we have an Internet Domain with 
 any two hosts The second argument is the type of socket. 
@@ -37,6 +47,17 @@ server.listen(100)
   
 list_of_clients = [] 
   
+def setUsername(conn, username):
+    for client in list_of_clients:
+        if client.conn == conn:
+            client.name = username
+            return
+
+def getUsernameFromConn(conn):
+    for client in list_of_clients:
+        if client.conn == conn:
+            return client.name
+
 def clientthread(conn, addr): 
   
     # sends a message to the client whose user object is conn 
@@ -44,16 +65,24 @@ def clientthread(conn, addr):
   
     while True: 
             try: 
-                message = conn.recv(2048) 
+                message = conn.recv(2048)
+                message = message.strip()
+                message = message.strip('\n')
                 if message: 
+                    if message.startswith("/setusername"):
+                        newUser = message.split(" ")
+                        print("user "+addr[0]+" renamed itself to "+newUser[1])
+                        setUsername(conn, newUser[1])
+                        continue
   
                     """prints the message and address of the 
                     user who just sent the message on the server 
                     terminal"""
-                    print ("<" + addr[0] + "> " + message) 
+                    who = getUsernameFromConn(conn)
+                    print ("<" + who + "> " + message) 
   
                     # Calls broadcast function to send message to all 
-                    message_to_send = "<" + addr[0] + "> " + message 
+                    message_to_send = "<" + who + "> " + message 
                     broadcast(message_to_send, conn) 
   
                 else: 
@@ -62,21 +91,22 @@ def clientthread(conn, addr):
                     remove(conn) 
   
             except: 
-                continue
+                traceback.print_exc()
+                #continue
   
 """Using the below function, we broadcast the message to all 
 clients who's object is not the same as the one sending 
 the message """
 def broadcast(message, connection): 
-    for clients in list_of_clients: 
-        if clients!=connection: 
+    for client in list_of_clients: 
+        if client.conn!=connection: 
             try: 
-                clients.send(message) 
+                client.conn.send(message) 
             except: 
-                clients.close() 
+                client.conn.close() 
   
                 # if the link is broken, we remove the client 
-                remove(clients) 
+                remove(client.conn) 
   
 """The following function simply removes the object 
 from the list that was created at the beginning of 
@@ -95,7 +125,8 @@ while True:
   
     """Maintains a list of clients for ease of broadcasting 
     a message to all available people in the chatroom"""
-    list_of_clients.append(conn) 
+    newClient = Client(conn, 'undef', 'undef')
+    list_of_clients.append(newClient) 
   
     # prints the address of the user that just connected 
     print (addr[0] + " connected")
